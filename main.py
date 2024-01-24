@@ -20,55 +20,65 @@ def print_logo():
     print(logo)
 
 
-if args.url:
-    # "https://www.olx.pl/motoryzacja/q-miska-olejowa-bmw-e87/"
-    url = args.url
-    f = open(args.keywords, 'r')
-    keywords = f.read().split(',')
-    f.close()
-    output_file_name = args.output
+class Sump:
+    def __init__(self, url, keywords_file, output_filename):
+        self.original_window = None
+        self.driver = webdriver.Firefox()
+        self.keywords = None
+        self.output_filename = output_filename
+        self.keywords_file = keywords_file
+        self.url = url
 
-    print_logo()
+    def read_keywords(self):
+        with open(self.keywords_file, 'r') as f:
+            self.keywords = f.read().split(',')
 
-    def refuse_cookies(drv):
-        drv.find_element(By.ID, 'onetrust-pc-btn-handler').click()
-        drv.find_element(By.CLASS_NAME, 'ot-pc-refuse-all-handler').click()
+    def make_output(self, auction_title, auction_url):
+        output_file = open(f'{self.output_filename}', 'a')
+        output_file.write(f'{auction_title} : {auction_url}\n')
 
-    driver = webdriver.Firefox()
-    driver.get(url)
-    driver.implicitly_wait(10)
-    refuse_cookies(driver)
+    def refuse_cookies(self):
+        self.driver.find_element(By.ID, 'onetrust-pc-btn-handler').click()
+        self.driver.find_element(By.CLASS_NAME, 'ot-pc-refuse-all-handler').click()
 
+    def search_for_keywords(self, auction_search_urls, search_keywords):
+        for auction_search_url in auction_search_urls:
+            self.driver.switch_to.new_window('tab')
+            self.driver.get(auction_search_url)
+            content = self.driver.find_elements(By.TAG_NAME, 'h1, h2, h3, h4, h5, h6, p')
+            for word in content:
+                if word.text in search_keywords:
+                    return True
+                else:
+                    return False
+            self.driver.close()
+            self.driver.switch_to.window(self.original_window)
 
-    def search_for_keywords(auction_search_url, search_keywords):
-        driver.switch_to.new_window('tab')
-        driver.get(auction_search_url)
-        content = driver.find_elements(By.TAG_NAME, 'h1, h2, h3, h4, h5, h6, p')
-        for word in content:
-            if word.text in search_keywords:
-                return True
-            else:
-                return False
-        driver.close()
-        driver.switch_to.window(original_window)
+    def run(self):
+        print_logo()
+        self.driver.get(self.url)
+        self.driver.implicitly_wait(10)
+        self.refuse_cookies()
+        self.original_window = self.driver.current_window_handle
+        assert len(self.driver.window_handles) == 1
+        auction_list = self.driver.find_elements(By.CSS_SELECTOR, 'div[data-testid="listing-grid"]')
+        for item in auction_list:
+            try:
+                auctions = item.find_elements(By.TAG_NAME, 'a')
+                auctions_urls = []
+                for auction in auctions:
+                    auction_title = auction.find_element(By.TAG_NAME, 'h6').text
+                    auction_url = auction.get_attribute('href')
+                    auctions_urls.append(auction_url)
+                if self.search_for_keywords(auctions_urls, self.keywords):
+                    self.make_output(auction_title, auction_url)
+            except NoSuchElementException:
+                pass
+        self.driver.quit()
 
-
-    original_window = driver.current_window_handle
-    assert len(driver.window_handles) == 1
-    auction_list = driver.find_elements(By.CSS_SELECTOR, 'div[data-testid="listing-grid"]')
-    for item in auction_list:
-        try:
-            auctions = item.find_elements(By.TAG_NAME, 'a')
-            for auction in auctions:
-                auction_title = auction.find_element(By.TAG_NAME, 'h6').text
-                auction_url = auction.get_attribute('href')
-                if search_for_keywords(auction_url, keywords):
-                    output_file = open(f'{output_file_name}', 'a')
-                    output_file.write(f'{auction_title} : {auction_url}\n')
-        except NoSuchElementException:
-            pass
-    driver.quit()
 
 # TEST RUN
 #   python ./main.py -u "https://www.olx.pl/motoryzacja/q-miska-olejowa-bmw-e87/" -k input.txt -o output.txt
 #
+if __name__ == '__main__':
+    Sump(args.url, args.keywords, args.output).run()
