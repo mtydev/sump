@@ -10,7 +10,7 @@ import pyfiglet
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-u", "--url", help="provides site url")
-parser.add_argument("-k", "--keywords", help="keywords that you want to see, needs to be a txt file")
+parser.add_argument("-k", "--keywords", help="keywords that you want to see, needs to be a txt file", type=argparse.FileType('r'))
 parser.add_argument("-o", "--output", help="name a output txt file, where links from finished query will be provided")
 args = parser.parse_args()
 
@@ -23,11 +23,13 @@ def print_logo():
 class Sump:
     def __init__(self, url, keywords_file, output_filename):
         self.original_window = None
-        self.driver = webdriver.Firefox()
+        self.driver = None
         self.keywords = None
         self.output_filename = output_filename
         self.keywords_file = keywords_file
         self.url = url
+        if not url or not keywords_file or not output_filename:
+            raise ValueError("All arguments must be provided: url, keywords_file, output_filename")
 
     def read_keywords(self):
         with open(self.keywords_file, 'r') as f:
@@ -45,7 +47,7 @@ class Sump:
         for auction_search_url in auction_search_urls:
             self.driver.switch_to.new_window('tab')
             self.driver.get(auction_search_url)
-            content = self.driver.find_elements(By.TAG_NAME, 'h1, h2, h3, h4, h5, h6, p')
+            content = self.driver.find_elements(By.ID, 'text')
             for word in content:
                 if word.text in search_keywords:
                     return True
@@ -54,13 +56,7 @@ class Sump:
             self.driver.close()
             self.driver.switch_to.window(self.original_window)
 
-    def run(self):
-        print_logo()
-        self.driver.get(self.url)
-        self.driver.implicitly_wait(10)
-        self.refuse_cookies()
-        self.original_window = self.driver.current_window_handle
-        assert len(self.driver.window_handles) == 1
+    def get_auction_urls(self):
         auction_list = self.driver.find_elements(By.CSS_SELECTOR, 'div[data-testid="listing-grid"]')
         for item in auction_list:
             try:
@@ -72,8 +68,20 @@ class Sump:
                     auctions_urls.append(auction_url)
                 if self.search_for_keywords(auctions_urls, self.keywords):
                     self.make_output(auction_title, auction_url)
+                else:
+                    pass
             except NoSuchElementException:
                 pass
+
+    def run(self):
+        print_logo()
+        self.driver = webdriver.Firefox()
+        self.driver.get(self.url)
+        self.driver.implicitly_wait(10)
+        self.refuse_cookies()
+        self.original_window = self.driver.current_window_handle
+        assert len(self.driver.window_handles) == 1
+        self.get_auction_urls()
         self.driver.quit()
 
 
@@ -81,4 +89,9 @@ class Sump:
 #   python ./main.py -u "https://www.olx.pl/motoryzacja/q-miska-olejowa-bmw-e87/" -k input.txt -o output.txt
 #
 if __name__ == '__main__':
-    Sump(args.url, args.keywords, args.output).run()
+    try:
+        Sump(args.url, args.keywords, args.output).run()
+    except ValueError as e:
+        print(f"Error: {e}")
+        print_logo()
+        parser.print_help()
