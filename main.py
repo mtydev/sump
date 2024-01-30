@@ -1,15 +1,11 @@
-import logging, sys
 import threading
+from bs4 import BeautifulSoup
+import requests
 from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import NoSuchElementException, TimeoutException
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.action_chains import ActionChains
 import argparse
 import pyfiglet
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from selenium.webdriver.support.wait import WebDriverWait
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-u", "--url", help="provides site url")
@@ -37,6 +33,7 @@ class Sump:
     def read_keywords(self):
         with open(self.keywords_file, 'r') as f:
             self.keywords = f.read().split(',')
+        print(f"Keywords: {self.keywords}")
 
     def print_output(self, auction_title, auction_url):
         output_file = open(f'{self.output_filename}', 'a')
@@ -46,43 +43,30 @@ class Sump:
         self.driver.find_element(By.ID, 'onetrust-pc-btn-handler').click()
         self.driver.find_element(By.CLASS_NAME, 'ot-pc-refuse-all-handler').click()
 
-    def search_for_keywords(self, auction_urls, timeout):
+    def search_for_keywords(self, auction_urls):
         self.read_keywords()
 
-        def search_in_auction(url):
-            self.driver.switch_to.new_window('tab')
-            self.driver.get(url)
-            try:
-                content = WebDriverWait(self.driver, timeout).until(
-                    EC.presence_of_all_elements_located((By.ID, 'text'))
-                )
-            except TimeoutException:
-                self.driver.close()
-                self.driver.switch_to.window(self.original_window)
-                return False
-
-            found = False
-            for word in content:
-                if word.text in self.keywords:
-                    found = True
-                    break
-            self.driver.close()
-            self.driver.switch_to.window(self.original_window)
-            return found
-
-        with ThreadPoolExecutor() as executor:
-            futures = {executor.submit(search_in_auction, url): url for url in auction_urls}
-            for future in as_completed(futures):
-                url = futures[future]
-                try:
-                    result = future.result(timeout)
-                except TimeoutError:
-                    print(f"Timeout for url: {url}")
-                    continue
-                if result:
+        def process_source(auction_url):
+            print(f"Processing: {auction_url}")
+            response = requests.get(auction_url)
+            page_source = response.text
+            soup = BeautifulSoup(page_source, 'html.parser')
+            for keyword in self.keywords:
+                if keyword in page_source:
+                    print(f"Found keyword: {keyword} for {auction_url}")
                     return True
             return False
 
+        threads = []
+
+        for url in auction_urls:
+            t = threading.Thread(target=process_source, args=(url,))
+            t.start()
+            threads.append(t)
+
+        for t in threads:
+            t.join()
+        
     def get_auction_urls(self):
         auction_list = self.driver.find_elements(By.CSS_SELECTOR, 'div[data-testid="listing-grid"]')
         auctions_urls = []
@@ -99,15 +83,17 @@ class Sump:
 
     def run(self):
         print_logo()
-        self.driver = webdriver.Firefox()
+        options = webdriver.FirefoxOptions()
+        options.add_argument('--headless')
+        options.add_argument('--window-size=1200x600')
+        self.driver = webdriver.Firefox(options=options)
         self.driver.get(self.url)
         self.driver.implicitly_wait(10)
         self.refuse_cookies()
         self.original_window = self.driver.current_window_handle
         assert len(self.driver.window_handles) == 1
         auction_urls = self.get_auction_urls()
-        self.read_keywords()
-        self.search_for_keywords(auction_urls, 10)
+        self.search_for_keywords(auction_urls)
         self.driver.quit()
 
 
