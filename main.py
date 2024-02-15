@@ -71,7 +71,6 @@ class Sump:
             try:
                 auctions = item.find_elements(By.TAG_NAME, 'a')
                 for auction in auctions:
-                    # auction_title = auction.find_element(By.TAG_NAME, 'h6').text
                     auction_url = auction.get_attribute('href')
                     auctions_urls.append(auction_url)
             except NoSuchElementException:
