@@ -9,7 +9,8 @@ import pyfiglet
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-u", "--url", help="provides site url")
-parser.add_argument("-k", "--keywords", help="keywords that you want to see, needs to be a txt file")
+parser.add_argument("-k", "--keywords", help="keywords that you want to see", nargs='+'
+                    , type=str)
 parser.add_argument("-o", "--output", help="name a output txt file, where links from finished query will be provided")
 args = parser.parse_args()
 
@@ -23,39 +24,35 @@ class Sump:
     def __init__(self, url, keywords_file, output_filename):
         self.original_window = None
         self.driver = None
-        self.keywords = None
+        self.keywords = args.keywords
         self.output_filename = output_filename
         self.keywords_file = keywords_file
         self.url = url
         if not url or not keywords_file or not output_filename:
             raise ValueError("All arguments must be provided: url, keywords_file, output_filename")
 
-    def read_keywords(self):
-        with open(self.keywords_file, 'r') as f:
-            self.keywords = f.read().split(',')
-        print(f"Keywords: {self.keywords}")
-
-    def print_output(self, auction_title, auction_url):
+    def print_output(self, auction_url, keyword):
         output_file = open(f'{self.output_filename}', 'a')
-        output_file.write(f'{auction_title} : {auction_url}\n')
+        output_file.write(f'{keyword} : {auction_url}\n')
 
     def refuse_cookies(self):
         self.driver.find_element(By.ID, 'onetrust-pc-btn-handler').click()
         self.driver.find_element(By.CLASS_NAME, 'ot-pc-refuse-all-handler').click()
 
     def search_for_keywords(self, auction_urls):
-        self.read_keywords()
 
         def process_source(auction_url):
-            print(f"Processing: {auction_url}")
+
             response = requests.get(auction_url)
             page_source = response.text
             soup = BeautifulSoup(page_source, 'html.parser')
             for keyword in self.keywords:
-                if keyword in page_source:
-                    print(f"Found keyword: {keyword} for {auction_url}")
-                    return True
-            return False
+                if keyword in soup.get_text():
+                    cash = 'No data'
+                    for price in soup.select('[data-testid="ad-price-container"]'):
+                        cash = price.find("h3").text
+                    print(f"Found keyword: {keyword} for {auction_url}. Price : {cash} \n")
+                    self.print_output(auction_url, keyword)
 
         threads = []
 
@@ -66,7 +63,7 @@ class Sump:
 
         for t in threads:
             t.join()
-        
+
     def get_auction_urls(self):
         auction_list = self.driver.find_elements(By.CSS_SELECTOR, 'div[data-testid="listing-grid"]')
         auctions_urls = []
@@ -74,7 +71,6 @@ class Sump:
             try:
                 auctions = item.find_elements(By.TAG_NAME, 'a')
                 for auction in auctions:
-                    auction_title = auction.find_element(By.TAG_NAME, 'h6').text
                     auction_url = auction.get_attribute('href')
                     auctions_urls.append(auction_url)
             except NoSuchElementException:
@@ -97,9 +93,6 @@ class Sump:
         self.driver.quit()
 
 
-# TEST RUN
-#   python ./main.py -u "https://www.olx.pl/motoryzacja/q-miska-olejowa-bmw-e87/" -k input.txt -o output.txt
-#
 if __name__ == '__main__':
     try:
         Sump(args.url, args.keywords, args.output).run()
