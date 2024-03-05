@@ -49,8 +49,12 @@ class Sump:
             for keyword in self.keywords:
                 if keyword in soup.get_text():
                     cash = 'No data'
-                    for price in soup.select('[data-testid="ad-price-container"]'):
-                        cash = price.find("h3").text
+                    if "otomoto" in auction_url:
+                        currency = soup.find('p', {'class': 'offer-price__currency'}).text
+                        cash = soup.find('h3', {'class': 'offer-price__number'}).text + "" + currency
+                    else:
+                        for price in soup.select('[data-testid="ad-price-container"]'):
+                            cash = price.find("h3").text.replace("zł", "PLN")
                     print(f"Found keyword: {keyword} for {auction_url}. Price : {cash} \n")
                     self.print_output(auction_url, keyword)
 
