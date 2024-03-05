@@ -16,7 +16,7 @@ pip install -r requirements.txt
 ```
 python ./main.py -u "URL" -k keywords -o output.txt
 ```
-Disclaimer: Please provide url after searchin for an item. For example if you are searching for a car just enter the search phrase in the search box, and then copy link and paste it to -u. Also, You need to enter keywords after space insted of using ",". Don't know why it's like this but I'll leave it for now.
+Disclaimer: Please provide url after searching for an item. For example if you are searching for a car just enter the search phrase in the search box, and then copy link and paste it to -u. Also, You need to enter keywords after space insted of using ",". Don't know why it's like this but I'll leave it for now.
 
 ## What do I plan to implement next?
 - Maybe make it as jupyter notebook for better data analytics? Then make some options for finding cheapest item in particular keywords?
