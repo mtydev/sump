@@ -39,6 +39,15 @@ class Sump:
         if not url or not keywords_file or not output_filename:
             raise ValueError("All arguments must be provided: url, keywords_file, output_filename")
 
+    def initialize_driver(self):
+        options = webdriver.FirefoxOptions()
+        options.add_argument('--headless')
+        options.add_argument('--window-size=1200x600')
+        self.driver = webdriver.Firefox(options=options)
+        self.driver.get(self.url)
+        self.driver.implicitly_wait(10)
+        self.refuse_cookies()
+
     def make_csv(self, output_filename):
         df = pd.DataFrame(self.data)
         df.to_csv(output_filename)
@@ -105,13 +114,7 @@ class Sump:
 
     def run(self):
         print_logo()
-        options = webdriver.FirefoxOptions()
-        options.add_argument('--headless')
-        options.add_argument('--window-size=1200x600')
-        self.driver = webdriver.Firefox(options=options)
-        self.driver.get(self.url)
-        self.driver.implicitly_wait(10)
-        self.refuse_cookies()
+        self.initialize_driver()
         self.original_window = self.driver.current_window_handle
         assert len(self.driver.window_handles) == 1
         auction_urls = self.get_auction_urls()
@@ -128,3 +131,6 @@ if __name__ == '__main__':
         print(f"Error: {e}")
         print_logo()
         parser.print_help()
+
+# TODO:
+#   - add multiple auction sites handling
