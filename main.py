@@ -1,12 +1,12 @@
-import threading
-from bs4 import BeautifulSoup
-import requests
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import NoSuchElementException, TimeoutException
 import argparse
-import pyfiglet
+import threading
 import pandas as pd
+import pyfiglet
+import requests
+from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.common.by import By
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-u", "--url", help="provides site url")
@@ -49,7 +49,9 @@ class Sump:
         self.refuse_cookies()
 
     def make_csv(self, output_filename):
-        df = pd.DataFrame(self.data)
+        df = pd.DataFrame(self.data, )
+        # df.columns = df.iloc[0]
+        # df = df[1:]
         df.to_csv(output_filename)
 
     def append_dictionary(self, auction_url, keyword, auction_name, price):
