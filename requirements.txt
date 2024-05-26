@@ -1,3 +1,6 @@
-beautifulsoup4
-selenium
-pyfiglet
+beautifulsoup4~=4.12.3
+selenium~=4.21.0
+pyfiglet~=1.0.2
+pandas~=2.2.2
+
+requests~=2.32.2
