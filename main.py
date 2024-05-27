@@ -35,7 +35,10 @@ class Sump:
             "URL": [],
             "Keyword": [],
             "Price": [],
-            "Year of Production": []
+            "Year of Production": [],
+            "HP": [],
+            "Mileage": [],
+            "Gearbox type": []
         }
         if not url or not keywords_file or not output_filename:
             raise ValueError("All arguments must be provided: url, keywords_file, output_filename")
@@ -50,16 +53,19 @@ class Sump:
         self.refuse_cookies()
 
     def make_csv(self, output_filename):
-        df = pd.DataFrame(self.data, )
+        df = pd.DataFrame(self.data)
         df.to_csv(output_filename)
 
-    def append_dictionary(self, auction_url, keyword, auction_name, price, prod_year):
+    def append_dictionary(self, auction_url, keyword, auction_name, price, prod_year, hp, mileage, gearbox):
 
         self.data["Name"].append(auction_name)
         self.data["URL"].append(auction_url)
         self.data["Keyword"].append(keyword)
         self.data["Price"].append(price)
         self.data["Year of Production"].append(prod_year)
+        self.data["HP"].append(hp)
+        self.data["Mileage"].append(mileage)
+        self.data["Gearbox type"].append(gearbox)
 
     def refuse_cookies(self):
         self.driver.find_element(By.ID, 'onetrust-pc-btn-handler').click()
@@ -76,8 +82,11 @@ class Sump:
             for keyword in self.keywords:
                 if keyword in soup.get_text():
                     cash = 'No data'
-                    auction_name = 'Not found'
-                    prod_year = 'Not found'
+                    auction_name = 'No data'
+                    prod_year = 'No data'
+                    hp = 'No data'
+                    mileage = 'No data'
+                    gearbox = 'No data'
                     if "otomoto" in auction_url:
                         currency = soup.find('p', {'class': 'offer-price__currency'}).text
                         cash = soup.find('h3', {'class': 'offer-price__number'}).text + "" + currency
@@ -88,14 +97,20 @@ class Sump:
                             cash = price.find("h3").text.replace("zł", "PLN").strip()
                         for title_container in soup.select('[data-cy="ad_title"]'):
                             auction_name = title_container.find("h4").text
-                        # for auction_parameters in soup.select('[class="css-sfcl1s"]'):
-                        #     for x in auction_parameters.find_all('p'):
-                        #         if x.text.find("Rok produkcji"):
-                        #             prod_year = x.text
+                        for auction_parameters in soup.select('[class="css-sfcl1s"]'):
+                            for x in auction_parameters.find_all('p'):
+                                if "Rok produkcji:" in x.text:
+                                    prod_year = x.text.replace("Rok produkcji:", "").strip()
+                                if "Moc silnika:" in x.text:
+                                    hp = x.text.replace("Moc silnika:", "").strip()
+                                if "Przebieg:" in x.text:
+                                    mileage = x.text.replace("Przebieg:", "").strip()
+                                if "Skrzynia biegów:" in x.text:
+                                    gearbox = x.text.replace("Skrzynia biegów:", "").strip()
 
                     if args.verbose:
                         print(f"Found keyword: {keyword} for {auction_url} Title: {auction_name}. Price : {cash} \n")
-                    self.append_dictionary(auction_url, keyword, auction_name, cash, prod_year)
+                    self.append_dictionary(auction_url, keyword, auction_name, cash, prod_year, hp, mileage, gearbox)
 
         threads = []
 
