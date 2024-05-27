@@ -34,7 +34,8 @@ class Sump:
             "Name": [],
             "URL": [],
             "Keyword": [],
-            "Price": []
+            "Price": [],
+            "Year of Production": []
         }
         if not url or not keywords_file or not output_filename:
             raise ValueError("All arguments must be provided: url, keywords_file, output_filename")
@@ -50,16 +51,15 @@ class Sump:
 
     def make_csv(self, output_filename):
         df = pd.DataFrame(self.data, )
-        # df.columns = df.iloc[0]
-        # df = df[1:]
         df.to_csv(output_filename)
 
-    def append_dictionary(self, auction_url, keyword, auction_name, price):
+    def append_dictionary(self, auction_url, keyword, auction_name, price, prod_year):
 
         self.data["Name"].append(auction_name)
         self.data["URL"].append(auction_url)
         self.data["Keyword"].append(keyword)
         self.data["Price"].append(price)
+        self.data["Year of Production"].append(prod_year)
 
     def refuse_cookies(self):
         self.driver.find_element(By.ID, 'onetrust-pc-btn-handler').click()
@@ -77,6 +77,7 @@ class Sump:
                 if keyword in soup.get_text():
                     cash = 'No data'
                     auction_name = 'Not found'
+                    prod_year = 'Not found'
                     if "otomoto" in auction_url:
                         currency = soup.find('p', {'class': 'offer-price__currency'}).text
                         cash = soup.find('h3', {'class': 'offer-price__number'}).text + "" + currency
@@ -87,9 +88,14 @@ class Sump:
                             cash = price.find("h3").text.replace("zł", "PLN").strip()
                         for title_container in soup.select('[data-cy="ad_title"]'):
                             auction_name = title_container.find("h4").text
+                        # for auction_parameters in soup.select('[class="css-sfcl1s"]'):
+                        #     for x in auction_parameters.find_all('p'):
+                        #         if x.text.find("Rok produkcji"):
+                        #             prod_year = x.text
+
                     if args.verbose:
                         print(f"Found keyword: {keyword} for {auction_url} Title: {auction_name}. Price : {cash} \n")
-                    self.append_dictionary(auction_url, keyword, auction_name, cash)
+                    self.append_dictionary(auction_url, keyword, auction_name, cash, prod_year)
 
         threads = []
 
