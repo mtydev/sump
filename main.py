@@ -38,10 +38,16 @@ class Sump:
             "Year of Production": [],
             "HP": [],
             "Mileage": [],
-            "Gearbox type": []
+            "Gearbox type": [],
+            "VIN": [],
+            "Engine capacity": []
         }
         if not url or not keywords_file or not output_filename:
             raise ValueError("All arguments must be provided: url, keywords_file, output_filename")
+
+    class AuctionDataError(Exception):
+        """Custom exception for auction data extraction errors."""
+        pass
 
     def initialize_driver(self):
         options = webdriver.FirefoxOptions()
@@ -49,14 +55,17 @@ class Sump:
         options.add_argument('--window-size=1200x600')
         self.driver = webdriver.Firefox(options=options)
         self.driver.get(self.url)
+        # Waiting for site to load
         self.driver.implicitly_wait(10)
         self.refuse_cookies()
+        self.original_window = self.driver.current_window_handle
+        assert len(self.driver.window_handles) == 1
 
-    def make_csv(self, output_filename):
+    def make_csv(self, output_filename: str):
         df = pd.DataFrame(self.data)
         df.to_csv(output_filename)
 
-    def append_dictionary(self, auction_url, keyword, auction_name, price, prod_year, hp, mileage, gearbox):
+    def append_dictionary(self, auction_url, keyword, auction_name, price, prod_year, hp, mileage, gearbox, vin, engine_cap):
 
         self.data["Name"].append(auction_name)
         self.data["URL"].append(auction_url)
@@ -66,6 +75,8 @@ class Sump:
         self.data["HP"].append(hp)
         self.data["Mileage"].append(mileage)
         self.data["Gearbox type"].append(gearbox)
+        self.data["VIN"].append(vin)
+        self.data["Engine capacity"].append(engine_cap)
 
     def refuse_cookies(self):
         self.driver.find_element(By.ID, 'onetrust-pc-btn-handler').click()
@@ -87,6 +98,8 @@ class Sump:
                     hp = 'No data'
                     mileage = 'No data'
                     gearbox = 'No data'
+                    vin = 'No data'
+                    engine_cap = 'No data'
                     if "otomoto" in auction_url:
                         currency = soup.find('p', {'class': 'offer-price__currency'}).text
                         cash = soup.find('h3', {'class': 'offer-price__number'}).text + "" + currency
@@ -97,20 +110,30 @@ class Sump:
                             cash = price.find("h3").text.replace("zł", "PLN").strip()
                         for title_container in soup.select('[data-cy="ad_title"]'):
                             auction_name = title_container.find("h4").text
-                        for auction_parameters in soup.select('[class="css-sfcl1s"]'):
-                            for x in auction_parameters.find_all('p'):
-                                if "Rok produkcji:" in x.text:
-                                    prod_year = x.text.replace("Rok produkcji:", "").strip()
-                                if "Moc silnika:" in x.text:
-                                    hp = x.text.replace("Moc silnika:", "").strip()
-                                if "Przebieg:" in x.text:
-                                    mileage = x.text.replace("Przebieg:", "").strip()
-                                if "Skrzynia biegów:" in x.text:
-                                    gearbox = x.text.replace("Skrzynia biegów:", "").strip()
+                        # CSS class changes sometimes, so better 'fool-proof' method is needed
+
+                        # Checking if css class name is present
+                        if soup.select_one('[class="css-px7scb"]'):
+                            for auction_parameters in soup.select('[class="css-px7scb"]'):
+                                for x in auction_parameters.find_all('p'):
+                                    if "Rok produkcji:" in x.text:
+                                        prod_year = x.text.replace("Rok produkcji:", "").strip()
+                                    if "Moc silnika:" in x.text:
+                                        hp = x.text.replace("Moc silnika:", "").strip()
+                                    if "Przebieg:" in x.text:
+                                        mileage = x.text.replace("Przebieg:", "").strip()
+                                    if "Skrzynia biegów:" in x.text:
+                                        gearbox = x.text.replace("Skrzynia biegów:", "").strip()
+                                    if "Numer VIN:" in x.text:
+                                        vin = x.text.replace("Numer VIN:", "").strip()
+                                    if "Poj. silnika:" in x.text:
+                                        engine_cap = x.text.replace("Poj. silnika:", "").strip()
+                        else:
+                            raise self.AuctionDataError("Auction parameters not found.")
 
                     if args.verbose:
                         print(f"Found keyword: {keyword} for {auction_url} Title: {auction_name}. Price : {cash} \n")
-                    self.append_dictionary(auction_url, keyword, auction_name, cash, prod_year, hp, mileage, gearbox)
+                    self.append_dictionary(auction_url, keyword, auction_name, cash, prod_year, hp, mileage, gearbox, vin, engine_cap)
 
         threads = []
 
@@ -138,8 +161,6 @@ class Sump:
     def run(self):
         print_logo()
         self.initialize_driver()
-        self.original_window = self.driver.current_window_handle
-        assert len(self.driver.window_handles) == 1
         auction_urls = self.get_auction_urls()
         self.search_for_keywords(auction_urls)
         self.make_csv(self.output_filename)
