@@ -1,12 +1,12 @@
-import threading
-from bs4 import BeautifulSoup
-import requests
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.common.exceptions import NoSuchElementException, TimeoutException
 import argparse
-import pyfiglet
+import threading
 import pandas as pd
+import pyfiglet
+import requests
+from bs4 import BeautifulSoup
+from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException
+from selenium.webdriver.common.by import By
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-u", "--url", help="provides site url")
@@ -34,21 +34,38 @@ class Sump:
             "Name": [],
             "URL": [],
             "Keyword": [],
-            "Price": []
+            "Price": [],
+            "Year of Production": [],
+            "HP": [],
+            "Mileage": [],
+            "Gearbox type": []
         }
         if not url or not keywords_file or not output_filename:
             raise ValueError("All arguments must be provided: url, keywords_file, output_filename")
+
+    def initialize_driver(self):
+        options = webdriver.FirefoxOptions()
+        options.add_argument('--headless')
+        options.add_argument('--window-size=1200x600')
+        self.driver = webdriver.Firefox(options=options)
+        self.driver.get(self.url)
+        self.driver.implicitly_wait(10)
+        self.refuse_cookies()
 
     def make_csv(self, output_filename):
         df = pd.DataFrame(self.data)
         df.to_csv(output_filename)
 
-    def append_dictionary(self, auction_url, keyword, auction_name, price):
+    def append_dictionary(self, auction_url, keyword, auction_name, price, prod_year, hp, mileage, gearbox):
 
         self.data["Name"].append(auction_name)
         self.data["URL"].append(auction_url)
         self.data["Keyword"].append(keyword)
         self.data["Price"].append(price)
+        self.data["Year of Production"].append(prod_year)
+        self.data["HP"].append(hp)
+        self.data["Mileage"].append(mileage)
+        self.data["Gearbox type"].append(gearbox)
 
     def refuse_cookies(self):
         self.driver.find_element(By.ID, 'onetrust-pc-btn-handler').click()
@@ -65,7 +82,11 @@ class Sump:
             for keyword in self.keywords:
                 if keyword in soup.get_text():
                     cash = 'No data'
-                    auction_name = 'Not found'
+                    auction_name = 'No data'
+                    prod_year = 'No data'
+                    hp = 'No data'
+                    mileage = 'No data'
+                    gearbox = 'No data'
                     if "otomoto" in auction_url:
                         currency = soup.find('p', {'class': 'offer-price__currency'}).text
                         cash = soup.find('h3', {'class': 'offer-price__number'}).text + "" + currency
@@ -76,9 +97,20 @@ class Sump:
                             cash = price.find("h3").text.replace("zł", "PLN").strip()
                         for title_container in soup.select('[data-cy="ad_title"]'):
                             auction_name = title_container.find("h4").text
+                        for auction_parameters in soup.select('[class="css-sfcl1s"]'):
+                            for x in auction_parameters.find_all('p'):
+                                if "Rok produkcji:" in x.text:
+                                    prod_year = x.text.replace("Rok produkcji:", "").strip()
+                                if "Moc silnika:" in x.text:
+                                    hp = x.text.replace("Moc silnika:", "").strip()
+                                if "Przebieg:" in x.text:
+                                    mileage = x.text.replace("Przebieg:", "").strip()
+                                if "Skrzynia biegów:" in x.text:
+                                    gearbox = x.text.replace("Skrzynia biegów:", "").strip()
+
                     if args.verbose:
                         print(f"Found keyword: {keyword} for {auction_url} Title: {auction_name}. Price : {cash} \n")
-                    self.append_dictionary(auction_url, keyword, auction_name, cash)
+                    self.append_dictionary(auction_url, keyword, auction_name, cash, prod_year, hp, mileage, gearbox)
 
         threads = []
 
@@ -105,13 +137,7 @@ class Sump:
 
     def run(self):
         print_logo()
-        options = webdriver.FirefoxOptions()
-        options.add_argument('--headless')
-        options.add_argument('--window-size=1200x600')
-        self.driver = webdriver.Firefox(options=options)
-        self.driver.get(self.url)
-        self.driver.implicitly_wait(10)
-        self.refuse_cookies()
+        self.initialize_driver()
         self.original_window = self.driver.current_window_handle
         assert len(self.driver.window_handles) == 1
         auction_urls = self.get_auction_urls()
@@ -128,3 +154,6 @@ if __name__ == '__main__':
         print(f"Error: {e}")
         print_logo()
         parser.print_help()
+
+# TODO:
+#   - add multiple auction sites handling
