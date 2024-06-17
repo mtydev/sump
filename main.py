@@ -30,18 +30,7 @@ class Sump:
         self.output_filename = output_filename
         self.keywords_file = keywords_file
         self.url = url
-        self.data = {
-            "Name": [],
-            "URL": [],
-            "Keyword": [],
-            "Price": [],
-            "Year of Production": [],
-            "HP": [],
-            "Mileage": [],
-            "Gearbox type": [],
-            "VIN": [],
-            "Engine capacity": []
-        }
+        self.data = pd.DataFrame(columns=["Name", "URL", "Keyword", "Price", "Year of Production", "HP", "Mileage", "Gearbox type", "VIN", "Engine capacity", "Petrol"])
         if not url or not keywords_file or not output_filename:
             raise ValueError("All arguments must be provided: url, keywords_file, output_filename")
 
@@ -65,18 +54,21 @@ class Sump:
         df = pd.DataFrame(self.data)
         df.to_csv(output_filename)
 
-    def append_dictionary(self, auction_url, keyword, auction_name, price, prod_year, hp, mileage, gearbox, vin, engine_cap):
-
-        self.data["Name"].append(auction_name)
-        self.data["URL"].append(auction_url)
-        self.data["Keyword"].append(keyword)
-        self.data["Price"].append(price)
-        self.data["Year of Production"].append(prod_year)
-        self.data["HP"].append(hp)
-        self.data["Mileage"].append(mileage)
-        self.data["Gearbox type"].append(gearbox)
-        self.data["VIN"].append(vin)
-        self.data["Engine capacity"].append(engine_cap)
+    def append_dictionary(self, auction_url, keyword, auction_name, price, prod_year, hp, mileage, gearbox, vin, engine_cap, petrol):
+        new_row = {
+            "Name": auction_name,
+            "URL": auction_url,
+            "Keyword": keyword,
+            "Price": price,
+            "Year of Production": prod_year,
+            "HP": hp,
+            "Mileage": mileage,
+            "Gearbox type": gearbox,
+            "VIN": vin,
+            "Engine capacity": engine_cap,
+            "Petrol": petrol
+        }
+        self.data = pd.concat([self.data, pd.DataFrame([new_row])], ignore_index=True)
 
     def refuse_cookies(self):
         self.driver.find_element(By.ID, 'onetrust-pc-btn-handler').click()
@@ -88,7 +80,7 @@ class Sump:
 
             response = requests.get(auction_url)
             page_source = response.text
-            soup = BeautifulSoup(page_source, 'html.parser')
+            soup = BeautifulSoup(page_source, 'lxml')
 
             for keyword in self.keywords:
                 if keyword in soup.get_text():
@@ -100,14 +92,27 @@ class Sump:
                     gearbox = 'No data'
                     vin = 'No data'
                     engine_cap = 'No data'
+                    petrol = 'No data'
                     if "otomoto" in auction_url:
-                        currency = soup.find('p', {'class': 'offer-price__currency'}).text
-                        cash = soup.find('h3', {'class': 'offer-price__number'}).text + "" + currency
-                        cash.strip()
+                        cash = soup.find('h3', {'class': 'offer-price__number'}).text.replace(" ", '')
                         auction_name = soup.find('h3', {'class': 'offer-title'}).text
+                        for auction_parameters in soup.select('[data-testid="advert-details-item"]'):
+                            if 'Rok produkcji' in auction_parameters.text:
+                                prod_year = auction_parameters.text.replace("Rok produkcji", "")
+                            if 'Moc' in auction_parameters.text:
+                                hp = auction_parameters.text.replace("Moc", "")
+                            if 'Przebieg' in auction_parameters.text:
+                                mileage = auction_parameters.text.replace("Przebieg", "")
+                            if 'Skrzynia biegów' in auction_parameters.text:
+                                gearbox = auction_parameters.text.replace("Skrzynia biegów", "")
+                            if 'Pojemność skokowa' in auction_parameters.text:
+                                engine_cap = auction_parameters.text.replace("Pojemność skokowa", "")
+                            if 'Rodzaj paliwa' in auction_parameters.text:
+                                petrol = auction_parameters.text.replace("Rodzaj paliwa", "")
+
                     else:
                         for price in soup.select('[data-testid="ad-price-container"]'):
-                            cash = price.find("h3").text.replace("zł", "PLN").strip()
+                            cash = price.find("h3").text.replace("zł", "").replace(" ", "")
                         for title_container in soup.select('[data-cy="ad_title"]'):
                             auction_name = title_container.find("h4").text
                         # CSS class changes sometimes, so better 'fool-proof' method is needed
@@ -128,12 +133,14 @@ class Sump:
                                         vin = x.text.replace("Numer VIN:", "").strip()
                                     if "Poj. silnika:" in x.text:
                                         engine_cap = x.text.replace("Poj. silnika:", "").strip()
+                                    if "Paliwo:" in x.text:
+                                        petrol = x.text.replace("Paliwo:", "").strip()
                         else:
                             raise self.AuctionDataError("Auction parameters not found.")
 
                     if args.verbose:
                         print(f"Found keyword: {keyword} for {auction_url} Title: {auction_name}. Price : {cash} \n")
-                    self.append_dictionary(auction_url, keyword, auction_name, cash, prod_year, hp, mileage, gearbox, vin, engine_cap)
+                    self.append_dictionary(auction_url, keyword, auction_name, cash, prod_year, hp, mileage, gearbox, vin, engine_cap, petrol)
 
         threads = []
 
