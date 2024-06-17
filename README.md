@@ -11,10 +11,11 @@ Then open cmd in sump directory and enter:
 ```
 pip install -r requirements.txt
 ```
+I recommend doing this inside python venv
 
 ## How to use SUMP?
 ```
-python ./main.py -u "URL" -k keywords -o output.txt
+python ./main.py -u "URL" -k keywords -o output.csv
 ```
 Disclaimer: Please provide url after searching for an item. For example if you are searching for a car just enter the search phrase in the search box, and then copy link and paste it to -u. Also, You need to enter keywords after space insted of using ",". Don't know why it's like this but I'll leave it for now.
 
